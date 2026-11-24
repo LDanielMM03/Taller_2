@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ciberseguridad para Contador Público · Informe técnico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F3EFE6; --paper-2:#E8E2D5;
+  --ink:#16191F; --ink-2:#232833;
+  --muted:#6B6A66; --muted-d:#9AA0AA;
+  --risk:#D9482B; --risk-soft:#F2B8A8;
+  --safe:#2C8C7A; --gold:#C9A227;
+  --serif:'Fraunces', Georgia, serif;
+  --sans:'IBM Plex Sans', system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0c0e12;overflow:hidden}
+body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+
+/* Escenario fijo 1920x1080 escalado a la ventana */
+#viewport{position:fixed;inset:0}
+#stage{width:1920px;height:1080px;position:absolute;left:50%;top:50%;transform-origin:center center;overflow:hidden;background:var(--paper)}
+.slide{position:absolute;inset:0;padding:110px 140px;visibility:hidden;background:var(--paper);color:var(--ink)}
+.slide.active{visibility:visible}
+.slide.dark{background:var(--ink);color:#EDEAE3}
+.slide.red{background:var(--risk);color:#FFF6F1}
+
+/* Tipografía */
+.kicker{font-family:var(--mono);font-size:22px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.dark .kicker{color:var(--muted-d)} .red .kicker{color:#FFD9CC}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.02em;line-height:1.02}
+h2{font-size:84px;margin-top:22px}
+p{font-size:30px;line-height:1.45}
+.lead{font-size:36px;line-height:1.4;max-width:1100px}
+.muted{color:var(--muted)} .dark .muted{color:var(--muted-d)}
+.mono{font-family:var(--mono)}
+em.r{font-style:normal;color:var(--risk)}
+em.s{font-style:normal;color:var(--safe)}
+.num{font-family:var(--serif);font-weight:800;letter-spacing:-.04em;line-height:.9}
+
+/* Entrada escalonada de elementos */
+[data-a]{opacity:0}
+.shown [data-a]{animation:rise .8s cubic-bezier(.16,.84,.3,1) forwards;animation-delay:calc(var(--d,0) * 110ms + 280ms)}
+.shown [data-a="fade"]{animation-name:fadein}
+.shown [data-a="left"]{animation-name:fromleft}
+@keyframes rise{from{opacity:0;transform:translateY(36px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes fromleft{from{opacity:0;transform:translateX(-50px)}to{opacity:1;transform:none}}
+
+/* Interfaz */
+#progress{position:absolute;left:0;bottom:0;height:6px;background:var(--risk);width:0;transition:width .6s cubic-bezier(.2,.7,.2,1);z-index:20}
+#counter{position:absolute;right:56px;bottom:34px;font-family:var(--mono);font-size:20px;color:var(--muted);z-index:20;transition:color .4s}
+#counter.on-dark{color:var(--muted-d)}
+#hint{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:rgba(22,25,31,.88);color:#eee;font:15px var(--sans);padding:10px 18px;border-radius:999px;transition:opacity .8s;z-index:50;pointer-events:none}
+#hint kbd{font-family:var(--mono);background:#333a46;padding:2px 7px;border-radius:4px;margin:0 2px}
+
+/* ---------- 1 Portada ---------- */
+#s1{display:flex;flex-direction:column;justify-content:space-between}
+#s1 h1{font-size:128px;font-weight:600;max-width:1280px;margin-top:40px}
+#s1 h1 span{color:var(--risk)}
+#s1 .sub{font-size:34px;color:var(--muted-d);max-width:1200px;margin-top:36px;line-height:1.35}
+#s1 .foot{display:flex;justify-content:space-between;align-items:flex-end;font-size:26px;line-height:1.6}
+#s1 .foot b{font-weight:600;color:#fff}
+#s1 .domain{position:absolute;right:140px;top:120px;font-family:var(--mono);font-size:30px;text-align:right;line-height:1.7}
+#s1 .domain .bad{color:var(--risk);text-decoration:line-through;text-decoration-thickness:3px}
+#s1 .domain .good{color:var(--safe)}
+
+/* ---------- 2 Problema ---------- */
+#s2{display:grid;grid-template-columns:1.25fr .75fr;gap:120px;align-items:center}
+#s2 blockquote{font-family:var(--serif);font-size:74px;line-height:1.1;letter-spacing:-.02em;font-weight:400}
+#s2 blockquote b{font-weight:700;color:var(--risk)}
+#s2 .after{margin-top:56px;font-size:32px}
+#s2 .channels{list-style:none;font-family:var(--mono);font-size:30px}
+#s2 .channels li{padding:20px 0;border-bottom:1px solid #cfc8b8;display:flex;justify-content:space-between}
+#s2 .channels li span{color:var(--muted);font-size:22px;align-self:center}
+#s2 .channels-cap{font-size:24px;margin-bottom:12px}
+
+/* ---------- 3 Antecedentes ---------- */
+.timeline{position:relative;margin-top:110px;display:grid;grid-template-columns:repeat(5,1fr);gap:30px}
+.timeline:before{content:"";position:absolute;left:0;right:0;top:18px;height:2px;background:#bdb5a3}
+.timeline .t{position:relative;padding-top:60px}
+.timeline .t:before{content:"";position:absolute;top:8px;left:0;width:22px;height:22px;border-radius:50%;background:var(--paper);border:3px solid var(--ink)}
+.timeline .t.hot:before{background:var(--risk);border-color:var(--risk)}
+.timeline .y{font-family:var(--serif);font-size:58px;font-weight:600}
+.timeline .t p{font-size:25px;margin-top:10px;line-height:1.35}
+#s3 .bottom{display:grid;grid-template-columns:auto 1fr;gap:80px;margin-top:110px;align-items:end}
+#s3 .bottom .num{font-size:170px;color:var(--risk)}
+#s3 .bottom p{font-size:29px;max-width:900px}
+
+/* ---------- 4 Objetivo ---------- */
+#s4 h2{max-width:1400px;font-size:76px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:56px;margin-top:120px;counter-reset:st}
+.steps div{border-top:4px solid #3a404c;padding-top:30px}
+.steps div:nth-child(1){border-color:var(--risk)}
+.steps .n{font-family:var(--mono);font-size:22px;color:var(--muted-d)}
+.steps h3{font-size:44px;margin:14px 0 18px;font-weight:600}
+.steps p{font-size:25px;color:#C9C6BF;line-height:1.4}
+.steps .ok{display:inline-block;margin-top:24px;font-family:var(--mono);font-size:20px;color:var(--safe);letter-spacing:.05em}
+
+/* ---------- 5 Metodología ---------- */
+#s5{display:grid;grid-template-columns:1fr 560px;gap:120px;align-items:center}
+#s5 dl{margin-top:50px;display:grid;grid-template-columns:260px 1fr;row-gap:26px;column-gap:30px;font-size:30px}
+#s5 dt{font-family:var(--mono);font-size:21px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:8px}
+#s5 dd{line-height:1.35}
+.waffle{display:grid;grid-template-columns:repeat(10,1fr);gap:14px}
+.waffle i{aspect-ratio:1;border-radius:50%;background:#ccc;opacity:0;transform:scale(.3)}
+.shown .waffle i{animation:pop .45s cubic-bezier(.3,1.6,.5,1) forwards;animation-delay:calc(var(--k) * 12ms + 500ms)}
+@keyframes pop{to{opacity:1;transform:none}}
+.legend{display:flex;flex-wrap:wrap;gap:14px 30px;margin-top:34px;font-size:22px}
+.legend span{display:flex;align-items:center;gap:10px}
+.legend span:before{content:"";width:16px;height:16px;border-radius:50%;background:var(--c)}
+#s5 .wcap{font-family:var(--serif);font-size:38px;margin-bottom:28px}
+
+/* ---------- 6 Riesgo por sección ---------- */
+.hbars{margin-top:90px;display:grid;gap:44px}
+.hbar{display:grid;grid-template-columns:420px 1fr;align-items:center;gap:40px}
+.hbar .lab{font-size:32px;text-align:right}
+.hbar .track{position:relative;height:74px}
+.hbar .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#4a5160;transition:width 1.3s cubic-bezier(.2,.8,.2,1)}
+.hbar.top .fill{background:var(--risk)}
+.shown .hbar .fill{width:var(--v)}
+.hbar .val{position:absolute;top:50%;transform:translateY(-50%);left:calc(var(--v) + 24px);font-family:var(--serif);font-size:50px;font-weight:700;opacity:0;transition:opacity .5s 1.1s}
+.shown .hbar .val{opacity:1}
+.hbar:nth-child(2) .fill{transition-delay:.15s}.hbar:nth-child(3) .fill{transition-delay:.3s}.hbar:nth-child(4) .fill{transition-delay:.45s}
+#s6 .note{margin-top:70px;font-size:24px;max-width:1200px}
+
+/* ---------- 7 Phishing ---------- */
+#s7{display:grid;grid-template-columns:1020px 1fr;gap:100px;align-items:center}
+.mail{background:#fff;border-radius:14px;box-shadow:0 30px 80px -30px rgba(0,0,0,.35);overflow:hidden;font-size:24px;position:relative}
+.mail .bar{background:#ECEDEF;padding:14px 22px;display:flex;gap:9px}
+.mail .bar i{width:13px;height:13px;border-radius:50%;background:#C9CBD0}
+.mail .hd{padding:28px 40px 22px;border-bottom:1px solid #eee}
+.mail .hd .subj{font-weight:600;font-size:30px;margin-bottom:14px}
+.mail .hd .from{color:#555;font-size:22px}
+.mail .bd{padding:30px 40px 40px;line-height:1.5;color:#333}
+.mail .bd .btn{display:inline-block;margin-top:24px;background:#7A1E2E;color:#fff;padding:14px 30px;border-radius:6px;font-weight:600}
+.mail .bd .url{display:block;margin-top:14px;font-family:var(--mono);font-size:19px;color:#666}
+.flag{position:relative;background:linear-gradient(transparent 60%,rgba(217,72,43,.28) 60%)}
+.pin{display:inline-grid;place-items:center;vertical-align:middle;margin-left:12px;width:34px;height:34px;border-radius:50%;background:var(--risk);color:#fff;font:600 17px var(--mono);box-shadow:0 0 0 5px rgba(217,72,43,.2)}
+.flags{list-style:none;margin-top:44px;display:grid;gap:26px}
+.flags li{display:grid;grid-template-columns:44px 1fr;gap:20px;font-size:26px;line-height:1.35;align-items:start}
+.flags li b{width:44px;height:44px;border-radius:50%;background:var(--risk);color:#fff;font:600 22px var(--mono);display:grid;place-items:center}
+#s7 h2{font-size:72px}
+#s7 .stats{margin-top:46px;display:flex;gap:60px;border-top:1px solid #cfc8b8;padding-top:30px}
+#s7 .stats .num{font-size:76px}
+#s7 .stats p{font-size:21px;margin-top:8px;line-height:1.3;max-width:220px}
+
+/* ---------- 8 Contraseñas ---------- */
+#s8{display:grid;grid-template-columns:640px 1fr;gap:110px;align-items:center}
+#s8 .big{font-size:290px;color:var(--risk)}
+#s8 .big-cap{font-size:34px;margin-top:56px;max-width:560px;line-height:1.35}
+.pw{width:100%;border-collapse:collapse;margin-top:34px}
+.pw td{padding:22px 0;border-bottom:1px solid #343a46;font-size:26px;vertical-align:middle}
+.pw .code{font-family:var(--mono);font-size:34px;color:#fff}
+.pw .meter{width:230px;height:10px;background:#2c313c;border-radius:5px;overflow:hidden;position:relative}
+.pw .meter i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--c);transition:width 1s cubic-bezier(.2,.8,.2,1) .6s;border-radius:5px}
+.shown .pw .meter i{width:var(--w)}
+.pw .lvl{font-family:var(--mono);font-size:19px;color:var(--c);padding-left:20px;width:150px}
+.pw .pct{text-align:right;font-family:var(--serif);font-size:44px;font-weight:700;width:130px}
+.pw th{font-family:var(--mono);font-size:18px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-d);text-align:left;font-weight:400;padding-bottom:6px}
+.pw th:last-child{text-align:right}
+#s8 .foot{display:flex;gap:70px;margin-top:44px;font-size:26px;color:#C9C6BF}
+#s8 .foot b{font-family:var(--serif);font-size:44px;color:#fff;margin-right:12px}
+
+/* ---------- 9 Datos diarios ---------- */
+#s9{display:grid;grid-template-columns:1fr 600px;gap:120px;align-items:center}
+.phone{width:540px;height:860px;background:#0B141A;border-radius:56px;padding:16px;box-shadow:0 40px 90px -30px rgba(0,0,0,.5);justify-self:center}
+.phone .scr{height:100%;border-radius:42px;background:#ECE5DD;overflow:hidden;display:flex;flex-direction:column}
+.phone .top{background:#1F5C50;color:#fff;padding:46px 28px 20px;font-size:24px}
+.phone .top small{display:block;font-size:17px;opacity:.75;margin-top:4px}
+.chat{flex:1;padding:24px 20px;display:flex;flex-direction:column;gap:16px;font-size:21px}
+.msg{max-width:82%;background:#fff;padding:12px 16px;border-radius:12px;line-height:1.35;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.msg.me{align-self:flex-end;background:#D9FDD3}
+.msg .who{font-size:16px;font-weight:600;color:#1F7A68;margin-bottom:4px}
+.msg .file{display:flex;gap:14px;align-items:center;background:rgba(0,0,0,.05);border-radius:8px;padding:12px;margin-bottom:8px}
+.msg .file i{width:40px;height:48px;background:#1D6F42;border-radius:4px;position:relative;flex:none}
+.msg .file i:after{content:"X";position:absolute;inset:0;display:grid;place-items:center;color:#fff;font:600 20px var(--sans);font-style:normal}
+.msg .file b{font-size:19px;display:block}
+.msg .file small{font-size:15px;color:#666}
+.msg time{display:block;text-align:right;font-size:14px;color:#888;margin-top:4px}
+.shown .msg{animation:msgin .5s cubic-bezier(.2,.9,.3,1.2) both}
+.shown .msg:nth-child(1){animation-delay:.5s}.shown .msg:nth-child(2){animation-delay:1.1s}.shown .msg:nth-child(3){animation-delay:1.8s}.shown .msg:nth-child(4){animation-delay:2.4s}
+.msg{opacity:0}
+@keyframes msgin{from{opacity:0;transform:translateY(20px) scale(.95)}to{opacity:1;transform:none}}
+.trio{margin-top:64px;display:grid;gap:40px}
+.trio > div{display:grid;grid-template-columns:230px 1fr;gap:30px;align-items:baseline}
+.trio .num{font-size:110px;color:var(--risk)}
+.trio p{font-size:28px;line-height:1.35}
+
+/* ---------- 10 Brecha ---------- */
+#s10{display:grid;grid-template-columns:1fr 520px;gap:110px}
+.vbars{display:flex;gap:110px;align-items:flex-end;height:520px;margin-top:70px;border-bottom:2px solid #3a404c;padding-left:20px}
+.group{display:flex;flex-direction:column;align-items:center;gap:22px;height:100%;justify-content:flex-end;position:relative}
+.group .pair{display:flex;gap:16px;align-items:flex-end;height:100%}
+.vb{width:120px;height:0;position:relative;transition:height 1.2s cubic-bezier(.2,.8,.2,1)}
+.shown .vb{height:var(--v)}
+.vb.know{background:#EDEAE3}.vb.do{background:var(--risk)}
+.vb span{position:absolute;top:-58px;left:0;right:0;text-align:center;font-family:var(--serif);font-weight:700;font-size:42px;opacity:0;transition:opacity .4s 1.1s}
+.shown .vb span{opacity:1}
+.group .gl{position:absolute;bottom:-62px;font-size:28px;white-space:nowrap}
+.group:nth-child(2) .vb{transition-delay:.2s}.group:nth-child(3) .vb{transition-delay:.4s}
+.vlegend{display:flex;gap:44px;margin-top:100px;font-size:24px}
+.vlegend span{display:flex;gap:12px;align-items:center}
+.vlegend span:before{content:"";width:22px;height:22px;background:var(--c)}
+#s10 aside{border-left:2px solid #3a404c;padding-left:60px;align-self:center}
+#s10 aside .num{font-size:180px;color:var(--gold)}
+#s10 aside p{font-size:29px;margin-top:20px}
+
+/* ---------- 11 Marco legal ---------- */
+#s11{display:grid;grid-template-columns:auto 1fr;gap:110px;align-items:center}
+#s11 .num{font-size:420px;line-height:.8}
+#s11 .what{font-family:var(--serif);font-size:54px;line-height:1.12;max-width:820px}
+#s11 ul{list-style:none;margin-top:60px;display:grid;gap:22px}
+#s11 li{font-size:28px;line-height:1.35;padding-left:40px;position:relative}
+#s11 li:before{content:"—";position:absolute;left:0}
+#s11 .laws{margin-top:60px;font-family:var(--mono);font-size:21px;color:#FFD9CC;line-height:1.8}
+
+/* ---------- 12 Curso ---------- */
+#s12 .head{display:flex;justify-content:space-between;align-items:flex-end}
+#s12 .head p{font-size:24px;text-align:right;max-width:520px}
+.mods{margin-top:60px}
+.mod{display:grid;grid-template-columns:110px 640px 1fr;gap:40px;align-items:center;padding:24px 0;border-bottom:1px solid #cfc8b8}
+.mod .mn{font-family:var(--serif);font-size:72px;font-weight:300;color:#B5AD9C;line-height:1}
+.mod h3{font-size:38px;font-weight:600}
+.mod p{font-size:24px;color:#4a4945}
+.mod.key{background:linear-gradient(90deg,rgba(217,72,43,.1),transparent 80%);border-bottom-color:var(--risk)}
+.mod.key .mn{color:var(--risk);font-weight:600}
+.mod .tag{font-family:var(--mono);font-size:17px;color:var(--risk);letter-spacing:.05em;display:block;margin-top:6px}
+
+/* ---------- 13 Viabilidad ---------- */
+#s13{display:grid;grid-template-columns:1fr 1fr;gap:130px}
+#s13 h3{font-size:46px;margin:46px 0 16px}
+#s13 .col p{font-size:27px}
+#s13 .tools{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px;font-family:var(--mono);font-size:21px}
+#s13 .tools span{padding:6px 16px;border:1px solid #bdb5a3;border-radius:999px}
+.budget .total{font-size:120px;margin-top:40px}
+.budget .total small{font-family:var(--sans);font-size:30px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:10px}
+.stack{display:flex;height:90px;margin-top:40px;width:100%}
+.stack div{height:100%;width:0;transition:width 1.2s cubic-bezier(.2,.8,.2,1);position:relative}
+.shown .stack div{width:var(--v)}
+.stack .lap{background:var(--risk)}.stack .eq{background:#E58C77}.stack .cur{background:#8F8A7E;transition-delay:.3s}
+.stack-l{display:grid;grid-template-columns:55% 25.6% 19.4%;font-size:21px;margin-top:14px;line-height:1.3}
+.stack-l b{font-family:var(--serif);font-size:32px;display:block}
+.budget ul{margin-top:50px;list-style:none;display:grid;gap:16px}
+.budget li{font-size:25px;padding-left:34px;position:relative;line-height:1.35}
+.budget li:before{content:"!";position:absolute;left:0;top:2px;font:600 20px var(--mono);color:var(--risk)}
+
+/* ---------- 14 Conclusiones ---------- */
+#s14{display:flex;flex-direction:column;justify-content:center}
+#s14 .statement{font-family:var(--serif);font-size:150px;line-height:1.02;max-width:none;margin-top:40px;font-weight:400}
+#s14 .statement b{font-weight:700;color:var(--risk)}
+.recs{display:grid;grid-template-columns:repeat(3,1fr);gap:70px;margin-top:100px}
+.recs h3{font-family:var(--mono);font-size:20px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-d);margin-bottom:18px}
+.recs p{font-size:27px;color:#DAD6CE}
+
+/* ---------- 15 Cierre ---------- */
+#s15{display:flex;flex-direction:column;justify-content:center}
+#s15 h2{font-size:190px}
+#s15 .names{margin-top:60px;font-size:30px;line-height:1.6}
+#s15 .check{font-family:var(--mono);font-size:30px;margin-top:80px;color:var(--muted)}
+#s15 .check b{color:var(--safe);font-weight:500}
+
+@media (prefers-reduced-motion: reduce){
+  *,*:before,*:after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important;transition-delay:0s!important}
+}
+</style>
+</head>
+<body>
+<div id="viewport">
+<div id="stage">
+
+<!-- 1 · Portada -->
+<section class="slide dark" id="s1" data-t="fade">
+  <div>
+    <div class="kicker" data-a>Taller de Investigación II · Informe técnico</div>
+    <h1 data-a>Ciberseguridad para quien maneja <span>datos ajenos</span></h1>
+    <p class="sub" data-a>Diseñar un curso de capacitación en ciberseguridad para la protección de datos personales y la prevención del ciberdelito en estudiantes de Contador Público del ITO</p>
+  </div>
+  <div class="domain" data-a="fade">
+    <div class="bad">sat-gobierno.com</div>
+    <div class="good">sat.gob.mx</div>
+  </div>
+  <div class="foot" data-a>
+    <div>Bautista Ramírez Amisadai Zuriel<br>Martínez Miguel Luis Daniel</div>
+    <div style="text-align:right">Docente: <b>German Maldonado Velazco</b><br>Instituto Tecnológico de Oaxaca · Noviembre 2026</div>
+  </div>
+</section>
+
+<!-- 2 · Problema -->
+<section class="slide" id="s2" data-t="slide">
+  <div>
+    <div class="kicker" data-a>El problema</div>
+    <blockquote data-a style="margin-top:30px">Se forman para manejar información sensible <b>sin aprender a protegerla.</b></blockquote>
+    <p class="after muted" data-a>La retícula incluye ética y legislación fiscal, pero ninguna materia enseña seguridad digital. El problema no es tecnológico: <b style="color:var(--ink)">es formativo.</b></p>
+  </div>
+  <div>
+    <p class="channels-cap muted" data-a>Lo que usa un estudiante en un día normal:</p>
+    <ul class="channels">
+      <li data-a="left">Portal escolar <span>cuenta</span></li>
+      <li data-a="left">CONTPAQi <span>contabilidad</span></li>
+      <li data-a="left">Servicios del SAT <span>fiscal</span></li>
+      <li data-a="left">WhatsApp <span>equipo</span></li>
+      <li data-a="left">Google Drive <span>archivos</span></li>
+      <li data-a="left">Correo personal <span>todo lo demás</span></li>
+    </ul>
+    <p data-a style="font-size:24px;margin-top:22px" class="muted">Cada una es una posible puerta de entrada.</p>
+  </div>
+</section>
+
+<!-- 3 · Antecedentes -->
+<section class="slide" id="s3" data-t="rise">
+  <div class="kicker" data-a>Antecedentes</div>
+  <h2 data-a>El blanco pasó de las empresas al usuario</h2>
+  <div class="timeline">
+    <div class="t" data-a><div class="y">1971</div><p>Creeper se propaga por ARPANET; Reaper nace para eliminarlo.</p></div>
+    <div class="t" data-a><div class="y">80s–90s</div><p>Virus en disquetes, ataques contra grandes equipos corporativos.</p></div>
+    <div class="t" data-a><div class="y">2010</div><p>Primera LFPDPPP en México.</p></div>
+    <div class="t" data-a><div class="y">2020</div><p>La pandemia lleva clases y trámites a línea, sin formación en seguridad.</p></div>
+    <div class="t hot" data-a><div class="y">2025</div><p>Nueva LFPDPPP, publicada el 20 de marzo.</p></div>
+  </div>
+  <div class="bottom">
+    <div class="num" data-a><span data-count="96.7" data-dec="1">96.7</span>%</div>
+    <p data-a>de los jóvenes de 18 a 24 años usa internet, el grupo con más uso del país (INEGI, 2024). Estudios previos con estudiantes de contabilidad (Stanciu y Tinca, 2016; Salazar Hernández et al., 2025) encontraron lo mismo: <b>saber los conceptos no significa aplicarlos.</b></p>
+  </div>
+</section>
+
+<!-- 4 · Objetivos -->
+<section class="slide dark" id="s4" data-t="wipe">
+  <div class="kicker" data-a>Objetivo general</div>
+  <h2 data-a>Diseñar un curso en línea a partir de un diagnóstico de los propios estudiantes.</h2>
+  <div class="steps">
+    <div data-a><span class="n">01</span><h3>Diagnosticar</h3><p>Medir conocimientos y prácticas de 100 estudiantes.</p><span class="ok">✓ CUMPLIDO</span></div>
+    <div data-a><span class="n">02</span><h3>Identificar amenazas</h3><p>Phishing del SAT y bancos, contraseñas repetidas, canales inseguros.</p><span class="ok">✓ CUMPLIDO</span></div>
+    <div data-a><span class="n">03</span><h3>Adaptar</h3><p>Casos reales de la carrera: SAT, CONTPAQi, WhatsApp, Drive.</p><span class="ok">✓ CUMPLIDO</span></div>
+    <div data-a><span class="n">04</span><h3>Definir contenido</h3><p>Cinco módulos con objetivo, contenido y actividad de verificación.</p><span class="ok">✓ CUMPLIDO</span></div>
+  </div>
+</section>
+
+<!-- 5 · Metodología -->
+<section class="slide" id="s5" data-t="slide">
+  <div>
+    <div class="kicker" data-a>Metodología</div>
+    <h2 data-a style="font-size:76px">Una encuesta, un solo momento, cien respuestas</h2>
+    <dl>
+      <dt data-a>Enfoque</dt><dd data-a>Cuantitativo, descriptivo, nivel propositivo</dd>
+      <dt data-a>Diseño</dt><dd data-a>No experimental, transversal</dd>
+      <dt data-a>Instrumento</dt><dd data-a>18 preguntas en 5 secciones, adaptadas del <b>HAIS-Q</b></dd>
+      <dt data-a>Modelo</dt><dd data-a>ADDIE: análisis, diseño y desarrollo</dd>
+      <dt data-a>Indicador</dt><dd data-a>% de estudiantes con respuesta insegura o que no conoce el tema</dd>
+    </dl>
+  </div>
+  <div>
+    <div class="wcap" data-a="fade">100 estudiantes, todos los semestres</div>
+    <div class="waffle" id="waffle"></div>
+    <div class="legend" data-a="fade">
+      <span style="--c:#16191F">1.º–2.º · 21</span>
+      <span style="--c:#D9482B">3.º–4.º · 27</span>
+      <span style="--c:#E58C77">5.º–6.º · 26</span>
+      <span style="--c:#8F8A7E">7.º–8.º · 18</span>
+      <span style="--c:#C9A227">9.º o más · 8</span>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · Riesgo por sección -->
+<section class="slide dark" id="s6" data-t="zoom">
+  <div class="kicker" data-a>Resultados · indicador de riesgo promedio</div>
+  <h2 data-a>Las contraseñas son el punto más débil</h2>
+  <div class="hbars">
+    <div class="hbar top"><div class="lab">Contraseñas y 2FA</div><div class="track"><div class="fill" style="--v:82%"></div><div class="val" style="--v:82%">82.0%</div></div></div>
+    <div class="hbar"><div class="lab">Marco legal</div><div class="track"><div class="fill" style="--v:61%"></div><div class="val" style="--v:61%">61.0%</div></div></div>
+    <div class="hbar"><div class="lab">Protección y colaboración</div><div class="track"><div class="fill" style="--v:58.5%"></div><div class="val" style="--v:58.5%">58.5%</div></div></div>
+    <div class="hbar"><div class="lab">Phishing</div><div class="track"><div class="fill" style="--v:41.3%"></div><div class="val" style="--v:41.3%">41.3%</div></div></div>
+  </div>
+  <p class="note muted" data-a>Porcentaje de estudiantes que dio una respuesta insegura o declaró no conocer el tema, promediado por sección del cuestionario (n = 100).</p>
+</section>
+
+<!-- 7 · Phishing -->
+<section class="slide" id="s7" data-t="slide">
+  <div class="mail" data-a>
+    <div class="bar"><i></i><i></i><i></i></div>
+    <div class="hd">
+      <div class="subj">Aviso de adeudo fiscal: <span class="flag">evite la multa en 24 horas</span><b class="pin">2</b></div>
+      <div class="from">De: SAT Notificaciones &lt;avisos@<span class="flag">sat-gobierno.com</span>&gt;<b class="pin">1</b></div>
+    </div>
+    <div class="bd">
+      Estimado contribuyente:<br><br>
+      Detectamos un saldo pendiente en su declaración. Si no regulariza su situación hoy, se aplicará una sanción conforme al Código Fiscal.
+      <br><span class="btn">Regularizar ahora</span>
+      <span class="url">→ http://<span class="flag">sat-gobierno.com/pago-urgente</span><b class="pin">3</b></span>
+    </div>
+  </div>
+  <div>
+    <div class="kicker" data-a>Ejemplo · Pregunta 2 y 3 del cuestionario</div>
+    <h2 data-a>¿Lo abrirías?</h2>
+    <ul class="flags">
+      <li data-a><b>1</b><span>El dominio no es <span class="mono">sat.gob.mx</span>.</span></li>
+      <li data-a><b>2</b><span>Urgencia y autoridad: la presión de “24 horas” que describe Cialdini.</span></li>
+      <li data-a><b>3</b><span>El botón lleva a un sitio externo para “pagar”.</span></li>
+    </ul>
+    <div class="stats">
+      <div data-a><div class="num" style="color:var(--safe)"><span data-count="76">76</span>%</div><p>identifica el dominio falso</p></div>
+      <div data-a><div class="num" style="color:var(--risk)"><span data-count="69">69</span>%</div><p>no revisa siempre el remitente</p></div>
+      <div data-a><div class="num" style="color:var(--risk)"><span data-count="20">20</span>%</div><p>entraría al enlace o lo reenviaría</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · Contraseñas -->
+<section class="slide dark" id="s8" data-t="rise">
+  <div>
+    <div class="kicker" data-a>Contraseñas · Pregunta 5</div>
+    <div class="num big" data-a><span data-count="72">72</span>%</div>
+    <p class="big-cap" data-a>usa <b>la misma contraseña</b> en casi todas sus cuentas. Otro 17% solo le cambia un número al final.</p>
+  </div>
+  <div>
+    <p data-a style="font-size:30px">“¿Cuál consideras una contraseña segura?” <span class="muted">(Pregunta 6)</span></p>
+    <table class="pw">
+      <tr data-a><th>Contraseña</th><th colspan="2">Fortaleza real</th><th>La eligió</th></tr>
+      <tr data-a><td class="code">Enero2001</td><td><div class="meter" style="--c:#D9482B"><i style="--w:15%;--c:#D9482B"></i></div></td><td class="lvl" style="--c:#D9482B">muy débil</td><td class="pct">56%</td></tr>
+      <tr data-a><td class="code">Contabilidad</td><td><div class="meter"><i style="--w:12%;--c:#D9482B"></i></div></td><td class="lvl" style="--c:#D9482B">muy débil</td><td class="pct">18%</td></tr>
+      <tr data-a><td class="code">Luna2001</td><td><div class="meter"><i style="--w:18%;--c:#D9482B"></i></div></td><td class="lvl" style="--c:#D9482B">muy débil</td><td class="pct">9%</td></tr>
+      <tr data-a><td class="code">Kx7!mP2@qL9#</td><td><div class="meter"><i style="--w:95%;--c:#2C8C7A"></i></div></td><td class="lvl" style="--c:#2C8C7A">fuerte</td><td class="pct" style="color:var(--safe)">17%</td></tr>
+    </table>
+    <div class="foot" data-a><span><b>82%</b>no usa gestor de contraseñas</span><span><b>74%</b>no tiene 2FA en la mayoría de sus cuentas</span></div>
+  </div>
+</section>
+
+<!-- 9 · Datos en el día a día -->
+<section class="slide" id="s9" data-t="slide">
+  <div>
+    <div class="kicker" data-a>Protección de datos y trabajo en equipo</div>
+    <h2 data-a style="font-size:76px">Así viaja la información de un cliente</h2>
+    <div class="trio">
+      <div data-a><div class="num"><span data-count="67">67</span>%</div><p>comparte archivos contables por WhatsApp (45%) o correo personal (22%).</p></div>
+      <div data-a><div class="num">65<span style="font-size:60px">/100</span></div><p>guarda información financiera sin protección; entre quienes ya la manejan, es el 80%.</p></div>
+      <div data-a><div class="num"><span data-count="37">37</span>%</div><p>probablemente entraría a plataformas financieras desde una WiFi pública.</p></div>
+    </div>
+  </div>
+  <div class="phone" data-a="fade">
+    <div class="scr">
+      <div class="top">Equipo Contabilidad 5B<small>Ana, Beto, Carla, tú</small></div>
+      <div class="chat">
+        <div class="msg"><div class="who">Carla</div>¿Quién tiene la nómina del despacho? La necesito para la práctica</div>
+        <div class="msg me"><div class="file"><i></i><div><b>Nomina_Cliente_Oct.xlsx</b><small>248 KB · Excel</small></div></div>Ahí va, viene con RFC y CURP de todos<time>10:42</time></div>
+        <div class="msg"><div class="who">Beto</div>Pásamela también al Gmail porfa, no me abre aquí</div>
+        <div class="msg me">Va, ahorita desde el café 👍<time>10:44</time></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 · Brecha -->
+<section class="slide dark" id="s10" data-t="zoom">
+  <div>
+    <div class="kicker" data-a>El hallazgo principal</div>
+    <h2 data-a>Saben más de lo que practican</h2>
+    <div class="vbars">
+      <div class="group"><div class="pair"><div class="vb know" style="--v:76%"><span>76%</span></div><div class="vb do" style="--v:31%"><span>31%</span></div></div><div class="gl">Phishing</div></div>
+      <div class="group"><div class="pair"><div class="vb know" style="--v:81%"><span>81%</span></div><div class="vb do" style="--v:35%"><span>35%</span></div></div><div class="gl">Permisos en Drive</div></div>
+      <div class="group"><div class="pair"><div class="vb know" style="--v:17%"><span>17%</span></div><div class="vb do" style="--v:11%"><span>11%</span></div></div><div class="gl">Contraseñas</div></div>
+    </div>
+    <div class="vlegend" data-a="fade"><span style="--c:#EDEAE3">Lo sabe</span><span style="--c:#D9482B">Lo aplica</span></div>
+  </div>
+  <aside>
+    <div class="num" data-a><span data-count="41">41</span>%</div>
+    <p data-a>se siente seguro o muy seguro manejando datos de terceros, aunque la mayoría repite contraseñas y guarda archivos sin protección.</p>
+    <p data-a class="muted" style="font-size:24px;margin-top:30px">La percepción va por delante de la realidad. En contraseñas fallan las dos cosas: el conocimiento y el hábito.</p>
+  </aside>
+</section>
+
+<!-- 11 · Marco legal -->
+<section class="slide red" id="s11" data-t="wipe">
+  <div class="num" data-a><span data-count="83">83</span>%</div>
+  <div>
+    <div class="kicker" data-a>Marco legal · Pregunta 14</div>
+    <p class="what" data-a style="margin-top:20px">no conoce lo que establece la ley que protege los datos que maneja.</p>
+    <ul>
+      <li data-a>61% no relaciona la confidencialidad del IMCP con sus archivos digitales.</li>
+      <li data-a>39% ocultaría una fuga de datos al cliente o no sabría qué hacer.</li>
+    </ul>
+    <div class="laws" data-a>LFPDPPP (DOF, 20/03/2025) · Código de Ética del IMCP<br>Código Penal Federal, arts. 211 bis 1 a 211 bis 7</div>
+  </div>
+</section>
+
+<!-- 12 · Curso -->
+<section class="slide" id="s12" data-t="rise">
+  <div class="head">
+    <div><div class="kicker" data-a>El producto</div><h2 data-a>Un curso, cinco módulos</h2></div>
+    <p class="muted" data-a>En línea, a ritmo propio y sin requisitos técnicos. Cada módulo cierra con una actividad de verificación. <b style="color:var(--ink)">69%</b> tiene interés alto en tomarlo.</p>
+  </div>
+  <div class="mods">
+    <div class="mod" data-a="left"><div class="mn">1</div><h3>Ciberseguridad desde el perfil del contador</h3><p>Por qué sus datos son un blanco: SAT, clientes, credenciales.</p></div>
+    <div class="mod" data-a="left"><div class="mn">2</div><h3>Phishing e ingeniería social</h3><p>Protocolo de 3 pasos: remitente, enlace, contenido.</p></div>
+    <div class="mod key" data-a="left"><div class="mn">3</div><div><h3>Contraseñas y autenticación</h3><span class="tag">MAYOR CARGA PRÁCTICA · 82% DE RIESGO</span></div><p>Instalar Bitwarden o KeePass y activar 2FA durante la sesión.</p></div>
+    <div class="mod" data-a="left"><div class="mn">4</div><h3>Protección de datos en el trabajo diario</h3><p>Carpetas cifradas, permisos en Drive, WiFi pública, filtraciones.</p></div>
+    <div class="mod" data-a="left"><div class="mn">5</div><h3>Marco legal: LFPDPPP e IMCP</h3><p>Derechos ARCO, confidencialidad y qué hacer ante una fuga.</p></div>
+  </div>
+</section>
+
+<!-- 13 · Viabilidad y presupuesto -->
+<section class="slide" id="s13" data-t="slide">
+  <div class="col">
+    <div class="kicker" data-a>Viabilidad</div>
+    <h2 data-a style="font-size:76px">Es viable</h2>
+    <h3 data-a>Técnica</h3>
+    <p data-a>No requiere desarrollar software. Las herramientas que enseña son gratuitas o ya están al alcance del estudiante:</p>
+    <div class="tools" data-a><span>Bitwarden</span><span>KeePass</span><span>2FA</span><span>Permisos de Drive</span><span>Carpetas cifradas</span></div>
+    <h3 data-a>Operativa</h3>
+    <p data-a>Se logró encuestar a 100 estudiantes de todos los semestres, en 16 semanas y con dos integrantes. Falta definir la plataforma donde se alojará.</p>
+  </div>
+  <div class="budget">
+    <div class="kicker" data-a>Presupuesto del protocolo</div>
+    <div class="num total" data-a>$72,768<small>MXN</small></div>
+    <div class="stack" data-a="fade"><div class="lap" style="--v:55%"></div><div class="eq" style="--v:25.6%"></div><div class="cur" style="--v:19.4%"></div></div>
+    <div class="stack-l" data-a="fade"><span><b>55%</b>dos laptops</span><span><b>25.6%</b>otro equipo</span><span><b>19.4%</b>gastos corrientes</span></div>
+    <ul>
+      <li data-a>$14,149.00 en gastos corrientes</li>
+      <li data-a>$58,619.04 en gastos de inversión</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 14 · Conclusiones -->
+<section class="slide dark" id="s14" data-t="fade">
+  <div class="kicker" data-a>Conclusión</div>
+  <p class="statement" data-a>El problema no es la falta de información, sino <b>la distancia entre saber y hacer.</b></p>
+  
+</section>
+
+<!-- 15 · Cierre -->
+<section class="slide" id="s15" data-t="zoom">
+  <h2 data-a>Gracias</h2>
+  <div class="names" data-a>Bautista Ramírez Amisadai Zuriel<br>Martínez Miguel Luis Daniel</div>
+  <div class="check" data-a>Antes de abrir un enlace: <b>remitente</b> → <b>enlace</b> → <b>contenido</b></div>
+</section>
+
+<div id="progress"></div>
+<div id="counter"></div>
+</div>
+</div>
+<div id="hint"><kbd>←</kbd><kbd>→</kbd> navegar &nbsp;·&nbsp; <kbd>F</kbd> pantalla completa</div>
+
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const slides = [...document.querySelectorAll('.slide')];
+  const progress = document.getElementById('progress');
+  const counter = document.getElementById('counter');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let cur = 0, running = [];
+
+  // Escalar el escenario 1920x1080 a la ventana
+  function fit(){
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+  }
+  addEventListener('resize', fit); fit();
+
+  // Índice de retraso para la entrada escalonada
+  slides.forEach(sl => sl.querySelectorAll('[data-a]').forEach((el, i) => el.style.setProperty('--d', i)));
+
+  // Gráfica de 100 puntos por semestre
+  const waffle = document.getElementById('waffle');
+  [['#16191F',21],['#D9482B',27],['#E58C77',26],['#8F8A7E',18],['#C9A227',8]].forEach(([c,n]) => {
+    for (let i = 0; i < n; i++){
+      const d = document.createElement('i');
+      d.style.background = c;
+      d.style.setProperty('--k', waffle.children.length);
+      waffle.appendChild(d);
+    }
+  });
+
+  // Contadores animados
+  function countUp(sl){
+    sl.querySelectorAll('[data-count]').forEach(el => {
+      const end = parseFloat(el.dataset.count), dec = +(el.dataset.dec || 0);
+      if (reduce){ el.textContent = end.toFixed(dec); return; }
+      const t0 = performance.now() + 400, dur = 1100;
+      el.textContent = (0).toFixed(dec);
+      const tick = now => {
+        const p = Math.min(Math.max((now - t0) / dur, 0), 1);
+        el.textContent = (end * (1 - Math.pow(1 - p, 3))).toFixed(dec);
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  // Transiciones entre diapositivas
+  const E = 'cubic-bezier(.65,0,.25,1)';
+  function frames(type, dir){
+    const d = dir;
+    switch(type){
+      case 'slide': return {
+        inn:[{transform:`translateX(${100*d}%)`},{transform:'none'}],
+        out:[{transform:'none',opacity:1},{transform:`translateX(${-35*d}%)`,opacity:.4}]};
+      case 'rise': return {
+        inn:[{transform:`translateY(${100*d}%)`},{transform:'none'}],
+        out:[{transform:'none',filter:'brightness(1)'},{transform:`translateY(${-25*d}%) scale(.94)`,filter:'brightness(.6)'}]};
+      case 'zoom': return {
+        inn:[{transform:`scale(${d>0?1.15:.85})`,opacity:0},{transform:'none',opacity:1}],
+        out:[{transform:'none',opacity:1},{transform:`scale(${d>0?.9:1.1})`,opacity:0}]};
+      case 'wipe': return {
+        inn:[{clipPath:d>0?'inset(0 0 0 100%)':'inset(0 100% 0 0)'},{clipPath:'inset(0 0 0 0)'}],
+        out:[{transform:'none'},{transform:`translateX(${-12*d}%)`}]};
+      default: return {
+        inn:[{opacity:0},{opacity:1}],
+        out:[{opacity:1},{opacity:0}]};
+    }
+  }
+
+  function show(n, dir){
+    if (n < 0 || n >= slides.length || n === cur && dir !== 0) return;
+    running.forEach(a => a.finish()); running = [];
+    const prev = slides[cur], next = slides[n];
+    const type = (dir >= 0 ? next : prev).dataset.t || 'fade';
+    next.classList.remove('shown'); void next.offsetWidth;
+    next.classList.add('active');
+    next.style.zIndex = 2; prev.style.zIndex = 1;
+    if (dir !== 0 && prev !== next && !reduce){
+      const f = frames(type, dir);
+      const opt = {duration: 850, easing: E};
+      const a1 = next.animate(f.inn, opt), a2 = prev.animate(f.out, opt);
+      running = [a1, a2];
+      a1.onfinish = () => { prev.classList.remove('active','shown'); prev.style.zIndex = ''; };
+      setTimeout(() => { next.classList.add('shown'); countUp(next); }, 250);
+    } else {
+      slides.forEach(s => { if (s !== next) s.classList.remove('active','shown'); });
+      next.classList.add('shown'); countUp(next);
+    }
+    cur = n;
+    progress.style.width = ((n + 1) / slides.length * 100) + '%';
+    counter.textContent = String(n + 1).padStart(2,'0') + ' / ' + slides.length;
+    counter.classList.toggle('on-dark', next.classList.contains('dark') || next.classList.contains('red'));
+    history.replaceState(null, '', '#' + (n + 1));
+  }
+
+  const go = d => show(cur + d, d);
+
+  function toggleFull(){
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch(e.key){
+      case 'ArrowRight': case 'ArrowDown': case 'PageDown': case ' ': e.preventDefault(); go(1); break;
+      case 'ArrowLeft': case 'ArrowUp': case 'PageUp': e.preventDefault(); go(-1); break;
+      case 'Home': show(0, -1); break;
+      case 'End': show(slides.length - 1, 1); break;
+      case 'f': case 'F': toggleFull(); break;
+    }
+    hint.style.opacity = 0;
+  });
+
+  // Gesto táctil y clic
+  let tx = null;
+  addEventListener('touchstart', e => tx = e.touches[0].clientX, {passive:true});
+  addEventListener('touchend', e => { if (tx === null) return; const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); tx = null; });
+
+  const hint = document.getElementById('hint');
+  setTimeout(() => hint.style.opacity = 0, 5000);
+
+  const start = Math.min(Math.max(parseInt(location.hash.slice(1)) - 1 || 0, 0), slides.length - 1);
+  cur = start; show(start, 0);
+})();
+</script>
+</body>
+</html>
